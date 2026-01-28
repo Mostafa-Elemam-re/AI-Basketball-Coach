@@ -1,5 +1,6 @@
 import cv2
 import sys
+import numpy as np
 from ultralytics import YOLO
 
 class SimpleBallTracker:
@@ -8,7 +9,7 @@ class SimpleBallTracker:
             # Load BOTH models
             self.ball_model = YOLO('yolo11n.pt')
             self.pose_model = YOLO('yolo11n-pose.pt')
-            print("--- Dual-Model Tracking Initialized (Optimized Scopes) ---")
+            print("--- Dual-Model Tracking Initialized (With Angle Display) ---")
         except Exception as e:
             print(f"Initialization Error: {e}")
             sys.exit()
@@ -16,7 +17,21 @@ class SimpleBallTracker:
         self.last_center = None
         self.padding = 150 
         self.miss_count = 0        
-        self.max_miss_buffer = 10  
+        self.max_miss_buffer = 25  
+
+    def calculate_angle(self, a, b, c):
+        """Calculates the angle at point b given points a, b, and c."""
+        a = np.array(a)
+        b = np.array(b)
+        c = np.array(c)
+        
+        radians = np.arctan2(c[1] - b[1], c[0] - b[0]) - np.arctan2(a[1] - b[1], a[0] - b[0])
+        angle = np.abs(radians * 180.0 / np.pi)
+        
+        if angle > 180.0:
+            angle = 360 - angle
+            
+        return int(angle)
 
     def run(self):
         cap = cv2.VideoCapture(0)
@@ -35,15 +50,33 @@ class SimpleBallTracker:
             h, w, _ = frame.shape
             
             # --- POSE ESTIMATION (Always Full Frame) ---
-            # We run this on the whole 'frame' so you are tracked regardless of the ball's position
             pose_results = self.pose_model.predict(frame, conf=0.3, verbose=False, imgsz=640)
             for r in pose_results:
                 if r.keypoints is not None:
+                    # keypoints.xy contains coordinates for 17 COCO points
+                    # Index map: 5:L_Shoulder, 7:L_Elbow, 9:L_Wrist | 6:R_Shoulder, 8:R_Elbow, 10:R_Wrist
+                    # 11:L_Hip, 13:L_Knee, 15:L_Ankle | 12:R_Hip, 14:R_Knee, 16:R_Ankle
                     for kpts in r.keypoints.xy:
-                        for kp in kpts:
+                        pts = kpts.cpu().numpy()
+                        
+                        # Draw all joints
+                        for kp in pts:
                             kx, ky = int(kp[0]), int(kp[1])
                             if kx > 0 and ky > 0:
                                 cv2.circle(frame, (kx, ky), 3, (0, 255, 0), -1)
+
+                        # Angle logic for elbows and knees
+                        joint_triplets = [
+                            (5, 7, 9, "L-Elbow"), (6, 8, 10, "R-Elbow"),
+                            (11, 13, 15, "L-Knee"), (12, 14, 16, "R-Knee")
+                        ]
+
+                        for i1, i2, i3, label in joint_triplets:
+                            if all(pts[i][0] > 0 for i in [i1, i2, i3]):
+                                p1, p2, p3 = pts[i1], pts[i2], pts[i3]
+                                angle = self.calculate_angle(p1, p2, p3)
+                                cv2.putText(frame, f"{angle}deg", (int(p2[0]) + 10, int(p2[1])),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
             # --- BALL DETECTION (Uses ROI/Padding Logic) ---
             search_area = frame
@@ -83,7 +116,7 @@ class SimpleBallTracker:
                 radius = (bx2 - bx1) // 2
                 
                 self.last_center = (abs_cx, abs_cy)
-                self.padding = int(radius * 2.5) + 80 # Tighter padding since it doesn't need to fit the person
+                self.padding = int(radius * 2.5) + 80 
                 
                 found_this_frame = True
                 self.miss_count = 0 
