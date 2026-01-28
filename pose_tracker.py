@@ -9,7 +9,7 @@ class SimpleBallTracker:
             # Load BOTH models
             self.ball_model = YOLO('yolo11n.pt')
             self.pose_model = YOLO('yolo11n-pose.pt')
-            print("--- Dual-Model Tracking Initialized (With Angle Display) ---")
+            print("--- Dual-Model Tracking Initialized (With Skeletons & Angles) ---")
         except Exception as e:
             print(f"Initialization Error: {e}")
             sys.exit()
@@ -17,7 +17,7 @@ class SimpleBallTracker:
         self.last_center = None
         self.padding = 150 
         self.miss_count = 0        
-        self.max_miss_buffer = 25  
+        self.max_miss_buffer = 10  
 
     def calculate_angle(self, a, b, c):
         """Calculates the angle at point b given points a, b, and c."""
@@ -53,17 +53,27 @@ class SimpleBallTracker:
             pose_results = self.pose_model.predict(frame, conf=0.3, verbose=False, imgsz=640)
             for r in pose_results:
                 if r.keypoints is not None:
-                    # keypoints.xy contains coordinates for 17 COCO points
-                    # Index map: 5:L_Shoulder, 7:L_Elbow, 9:L_Wrist | 6:R_Shoulder, 8:R_Elbow, 10:R_Wrist
-                    # 11:L_Hip, 13:L_Knee, 15:L_Ankle | 12:R_Hip, 14:R_Knee, 16:R_Ankle
                     for kpts in r.keypoints.xy:
                         pts = kpts.cpu().numpy()
                         
+                        # Skeleton connections (index pairs for drawing limbs)
+                        skeleton_links = [
+                            (5, 7), (7, 9), (6, 8), (8, 10),     # Arms
+                            (5, 6), (5, 11), (6, 12), (11, 12), # Torso
+                            (11, 13), (13, 15), (12, 14), (14, 16) # Legs
+                        ]
+
+                        # Draw limbs
+                        for i1, i2 in skeleton_links:
+                            p1, p2 = pts[i1], pts[i2]
+                            if p1[0] > 0 and p1[1] > 0 and p2[0] > 0 and p2[1] > 0:
+                                cv2.line(frame, (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1])), (0, 255, 0), 2)
+
                         # Draw all joints
                         for kp in pts:
                             kx, ky = int(kp[0]), int(kp[1])
                             if kx > 0 and ky > 0:
-                                cv2.circle(frame, (kx, ky), 3, (0, 255, 0), -1)
+                                cv2.circle(frame, (kx, ky), 4, (0, 0, 255), -1)
 
                         # Angle logic for elbows and knees
                         joint_triplets = [
@@ -75,7 +85,7 @@ class SimpleBallTracker:
                             if all(pts[i][0] > 0 for i in [i1, i2, i3]):
                                 p1, p2, p3 = pts[i1], pts[i2], pts[i3]
                                 angle = self.calculate_angle(p1, p2, p3)
-                                cv2.putText(frame, f"{angle}deg", (int(p2[0]) + 10, int(p2[1])),
+                                cv2.putText(frame, f"{angle}deg", (int(p2[0]) + 15, int(p2[1])),
                                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
             # --- BALL DETECTION (Uses ROI/Padding Logic) ---
@@ -99,7 +109,7 @@ class SimpleBallTracker:
             cv2.putText(frame, mode_text, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, mode_color, 2)
 
             # Detect the ball within the restricted search_area
-            ball_results = self.ball_model.predict(search_area, classes=[32], conf=0.15, verbose=False, imgsz=640)
+            ball_results = self.ball_model.predict(search_area, classes=[32], conf=0.25, verbose=False, imgsz=640)
 
             found_this_frame = False
             best_ball = None
