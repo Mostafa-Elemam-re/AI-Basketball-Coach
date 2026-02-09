@@ -2,128 +2,164 @@ import cv2
 import sys
 import numpy as np
 import time
+import threading
+from collections import deque
 from ultralytics import YOLO
 
 class SimpleBallTracker:
     def __init__(self):
+        # --- CONFIGURATION ---
+        self.CAMERA_SOURCE = 1 
+        
         try:
-            # Load BOTH models
-            self.ball_model = YOLO('yolo11n.pt')
-            self.pose_model = YOLO('yolo11n-pose.pt')
-            print("--- AI Models Loaded Successfully ---")
+            # Using yolo11n.pt - scanning full frames (640px)
+            self.model = YOLO('yolo11n.pt')
+            print(f"--- Full-Frame Scanning Engine Initialized ---")
         except Exception as e:
-            print(f"Initialization Error: {e}")
+            print(f"Init Error: {e}")
             sys.exit()
         
-        self.camera_index = None
-        # FPS calculation variables
-        self.prev_time = 0
-        self.fps = 0
-
-    def find_correct_camera(self):
-        """Checks indices 0-4 and lets the user pick the one that shows the S24."""
-        print("\n--- Camera Scanner Started ---")
-        print("I will show a preview for each camera found.")
-        print("Press 'Y' if you see your phone, or 'N' to skip to the next camera.")
+        # State Management
+        self.last_center = None
+        self.path_history = deque(maxlen=30)
+        self.miss_count = 0
+        self.max_miss_allowed = 45 
         
-        for idx in range(5):
-            print(f"Checking Camera Index {idx}...")
-            cap = cv2.VideoCapture(idx)
-            
-            start_time = time.time()
-            while time.time() - start_time < 10:
-                success, frame = cap.read()
-                if success and frame is not None:
-                    display_frame = frame.copy()
-                    cv2.putText(display_frame, f"INDEX: {idx}", (50, 50), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                    cv2.putText(display_frame, "Press 'Y' if this is the S24", (50, 100), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-                    cv2.putText(display_frame, "Press 'N' to skip", (50, 140), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-                    
-                    cv2.imshow("Camera Scanner", display_frame)
-                    key = cv2.waitKey(1) & 0xFF
-                    if key == ord('y') or key == ord('Y'):
-                        print(f"Success! Locked onto Index {idx}")
-                        cv2.destroyWindow("Camera Scanner")
-                        return cap, idx
-                    if key == ord('n') or key == ord('N'):
-                        break
-                else:
-                    break
-            
-            cap.release()
-            cv2.destroyAllWindows()
-            
-        print("No camera was selected. Please ensure your phone is linked and try again.")
-        sys.exit()
+        # Buffering & Timing
+        self.target_delay_seconds = 5
+        self.processed_buffer = deque()
+        
+        # Shared State
+        self.new_frame_available = threading.Event()
+        self.latest_raw_frame = None
+        self.actual_camera_fps = 30.0
+        self.running = True
+        self.is_playing = False
+        self.proc_fps = 0
 
-    def calculate_angle(self, a, b, c):
-        a, b, c = np.array(a), np.array(b), np.array(c)
-        radians = np.arctan2(c[1] - b[1], c[0] - b[0]) - np.arctan2(a[1] - b[1], a[0] - b[0])
-        angle = np.abs(radians * 180.0 / np.pi)
-        if angle > 180.0:
-            angle = 360 - angle
-        return int(angle)
-
-    def run(self):
-        cap, self.camera_index = self.find_correct_camera()
+    def connect_camera(self):
+        """Connects to Windows Link and attempts to reduce motion blur via exposure."""
+        cap = cv2.VideoCapture(self.CAMERA_SOURCE, cv2.CAP_DSHOW)
+        if not cap.isOpened():
+            sys.exit("Error: Could not open camera.")
         
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        cap.set(cv2.CAP_PROP_FPS, 60)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-        print(f"Tracking started on Index {self.camera_index}. Press 'Q' to quit.")
+        # Set exposure to reduce motion blur
+        cap.set(cv2.CAP_PROP_EXPOSURE, -7) 
+        
+        return cap
 
-        while True:
+    def camera_grabber(self, cap):
+        frame_count = 0
+        start_time = time.time()
+        while self.running:
             success, frame = cap.read()
-            if not success or frame is None:
+            if success:
+                self.latest_raw_frame = frame
+                self.new_frame_available.set()
+                frame_count += 1
+                elapsed = time.time() - start_time
+                if elapsed > 1.0:
+                    self.actual_camera_fps = frame_count / elapsed
+                    frame_count = 0
+                    start_time = time.time()
+            else:
+                time.sleep(0.01)
+        cap.release()
+
+    def processing_worker(self):
+        prev_time = time.time()
+        while self.running:
+            if not self.new_frame_available.wait(timeout=1.0):
+                continue
+            
+            self.new_frame_available.clear()
+            if self.latest_raw_frame is None:
                 continue
 
-            # --- FPS CALCULATION ---
-            current_time = time.time()
-            time_diff = current_time - self.prev_time
-            if time_diff > 0:
-                self.fps = 1 / time_diff
-            self.prev_time = current_time
+            frame = self.latest_raw_frame.copy()
+            
+            # --- FULL FRAME DETECTION ---
+            # Removed ROI padding/cropping to scan the entire screen every time.
+            # Using imgsz=640 for better accuracy on full-screen scans.
+            results = self.model.predict(
+                frame, 
+                classes=[32, 37], 
+                conf=0.15, 
+                verbose=False, 
+                imgsz=640 
+            )
 
-            # --- POSE ESTIMATION ---
-            pose_results = self.pose_model.predict(frame, conf=0.3, verbose=False)
-            for r in pose_results:
-                if r.keypoints is not None:
-                    for kpts in r.keypoints.xy:
-                        pts = kpts.cpu().numpy()
-                        links = [(5, 7), (7, 9), (6, 8), (8, 10), (5, 6), (5, 11), (6, 12), (11, 12), (11, 13), (12, 14), (13, 15), (14, 16)]
-                        for i1, i2 in links:
-                            if i1 < len(pts) and i2 < len(pts):
-                                p1, p2 = pts[i1], pts[i2]
-                                if p1[0] > 0 and p2[0] > 0:
-                                    cv2.line(frame, (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1])), (0, 255, 0), 2)
-                        
-                        for i1, i2, i3 in [(5, 7, 9), (6, 8, 10), (11, 13, 15), (12, 14, 16)]:
-                            if all(pts[i][0] > 0 for i in [i1, i2, i3]):
-                                angle = self.calculate_angle(pts[i1], pts[i2], pts[i3])
-                                cv2.putText(frame, f"{angle}d", (int(pts[i2][0]), int(pts[i2][1])), 
-                                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-
-            # --- BALL DETECTION ---
-            ball_results = self.ball_model.predict(frame, classes=[32], conf=0.25, verbose=False)
-            for r in ball_results:
+            best_ball = None
+            for r in results:
                 for box in r.boxes:
                     bx1, by1, bx2, by2 = map(int, box.xyxy[0])
-                    cv2.circle(frame, ((bx1+bx2)//2, (by1+by2)//2), (bx2-bx1)//2, (0, 165, 255), 3)
+                    cur_cx, cur_cy = (bx1 + bx2) // 2, (by1 + by2) // 2
+                    
+                    if best_ball is None or box.conf[0] > best_ball['conf']:
+                        best_ball = {
+                            'center': (cur_cx, cur_cy), 
+                            'bbox': (bx1, by1, bx2, by2), 
+                            'conf': float(box.conf[0])
+                        }
 
-            # --- DISPLAY FPS ---
-            cv2.putText(frame, f"FPS: {int(self.fps)}", (1100, 50), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            if best_ball:
+                self.last_center = best_ball['center']
+                self.path_history.appendleft(self.last_center)
+                self.miss_count = 0
+                bx1, by1, bx2, by2 = best_ball['bbox']
+                cv2.rectangle(frame, (bx1, by1), (bx2, by2), (0, 165, 255), 2)
+            else:
+                self.miss_count += 1
+                if self.miss_count > self.max_miss_allowed:
+                    self.last_center = None
 
-            cv2.imshow("AI Basketball Tracker", frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+            # Render Trail
+            for i in range(1, len(self.path_history)):
+                thickness = max(1, int(np.sqrt(30 / float(i + 1)) * 2))
+                cv2.line(frame, self.path_history[i-1], self.path_history[i], (0, 255, 255), thickness)
 
-        cap.release()
+            # Performance Stats
+            curr_time = time.time()
+            self.proc_fps = 1 / (curr_time - prev_time) if (curr_time - prev_time) > 0 else 0
+            prev_time = curr_time
+
+            cv2.putText(frame, f"DETECTION: {int(self.proc_fps)} FPS (Full Scan)", (20, 40), 1, 1.2, (0, 255, 0), 2)
+            cv2.putText(frame, f"CAM: {int(self.actual_camera_fps)} FPS", (20, 70), 1, 1.2, (255, 255, 0), 2)
+
+            self.processed_buffer.append(frame)
+
+    def run(self):
+        cap = self.connect_camera()
+        threading.Thread(target=self.camera_grabber, args=(cap,), daemon=True).start()
+        threading.Thread(target=self.processing_worker, daemon=True).start()
+
+        while self.running:
+            required_buffer = int(self.actual_camera_fps * self.target_delay_seconds)
+            if not self.is_playing:
+                if len(self.processed_buffer) >= required_buffer:
+                    self.is_playing = True
+                else:
+                    loading = np.zeros((720, 1280, 3), dtype=np.uint8)
+                    cv2.putText(loading, f"BUFFERING FULL SCAN: {len(self.processed_buffer)}/{required_buffer}", (350, 360), 1, 1.5, (255, 255, 255), 2)
+                    cv2.imshow("Delayed Tracker Output", loading)
+                    if cv2.waitKey(1) & 0xFF == ord('q'): self.running = False
+                    continue
+
+            if self.processed_buffer:
+                display_frame = self.processed_buffer.popleft()
+                cv2.imshow("Delayed Tracker Output", display_frame)
+                wait_time = max(1, int(1000 / max(1, self.actual_camera_fps)))
+                if cv2.waitKey(wait_time) & 0xFF == ord('q'): 
+                    self.running = False
+            else:
+                self.is_playing = False
+
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    tracker = SimpleBallTracker()
-    tracker.run()
+    SimpleBallTracker().run()
