@@ -2,3 +2,4 @@
 yolo26x.pt
 *.pt
 *.weights
+venv/
