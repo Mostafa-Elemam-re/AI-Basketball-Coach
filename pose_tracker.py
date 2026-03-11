@@ -8,6 +8,8 @@ from tkinter import filedialog
 from collections import deque
 import os
 import math
+import csv
+import matplotlib.pyplot as plt
 
 # -- MODEL AVAILABILITY --
 YOLO_AVAILABLE = False
@@ -45,6 +47,9 @@ class BasketballColorTracker:
         self.ridx = 0
         self.paused = True 
 
+        # Data Logging (Every Frame)
+        self.angle_logs = []
+        
         # YOLO26x FULL SKELETON MAP
         self.FULL_SKELETON_EDGES = [
             (5, 6), (5, 11), (6, 12), (11, 12),
@@ -77,11 +82,58 @@ class BasketballColorTracker:
         scale = min(max_w/w, max_h/h)
         return scale, (int(w * scale), int(h * scale))
 
+    def save_data_and_plot(self):
+        if not self.angle_logs:
+            print("No data recorded to save.")
+            return
+        
+        # 1. Save CSV
+        filename = "shooting_analysis.csv"
+        keys = self.angle_logs[0].keys()
+        try:
+            with open(filename, 'w', newline='') as output_file:
+                dict_writer = csv.DictWriter(output_file, fieldnames=keys)
+                dict_writer.writeheader()
+                dict_writer.writerows(self.angle_logs)
+            print(f"--- Data successfully saved to {filename} ---")
+        except Exception as e:
+            print(f"Error saving CSV: {e}")
+
+        # 2. Generate Graph
+        print("Generating Analysis Graph...")
+        timestamps = [log["Timestamp"] for log in self.angle_logs]
+        
+        plt.figure(figsize=(12, 6))
+        joints = ["L_ELBOW", "R_ELBOW", "L_KNEE", "R_KNEE", "L_SHOULDER", "R_SHOULDER"]
+        colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF33A1', '#33FFF2']
+        
+        for joint, color in zip(joints, colors):
+            angles = [log[joint] for log in self.angle_logs]
+            
+            # Filter out None values for plotting (interpolation)
+            clean_times = [t for t, a in zip(timestamps, angles) if a is not None]
+            clean_angles = [a for a in angles if a is not None]
+            
+            if clean_angles:
+                plt.plot(clean_times, clean_angles, label=joint.replace("_", " "), 
+                         color=color, linewidth=2, marker='o', markersize=3, alpha=0.8)
+
+        plt.title("Biomechanical Shot Analysis: Joint Angles vs Time", fontsize=14, fontweight='bold')
+        plt.xlabel("Time (Seconds)", fontsize=12)
+        plt.ylabel("Angle (Degrees)", fontsize=12)
+        plt.legend(loc='upper right', bbox_to_anchor=(1.15, 1))
+        plt.grid(True, linestyle='--', alpha=0.6)
+        plt.tight_layout()
+        
+        plt.savefig('joint_angles_over_time.png', dpi=300)
+        print("Graph saved as 'joint_angles_over_time.png'")
+        plt.show()
+
     def process_video(self):
         cap = cv2.VideoCapture(self.VIDEO_PATH)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         fps = cap.get(cv2.CAP_PROP_FPS)
-        if fps <= 0: fps = 30.0 # Fallback
+        if fps <= 0: fps = 30.0
         
         temp_replay = []
         
@@ -93,82 +145,71 @@ class BasketballColorTracker:
             self.processing_progress = int((i / total_frames) * 100)
             display_frame = frame.copy()
             
-            # --- TIMER LOGIC ---
-            elapsed_seconds = i / fps
-            minutes = int(elapsed_seconds // 60)
-            seconds = int(elapsed_seconds % 60)
-            milliseconds = int((elapsed_seconds % 1) * 1000)
-            timer_text = f"TIME: {minutes:02d}:{seconds:02d}.{milliseconds:03d}"
-            
-            # Draw Timer Overlay (Top Left)
-            cv2.rectangle(display_frame, (10, 10), (280, 50), (0,0,0), -1)
-            cv2.putText(display_frame, timer_text, (20, 40), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            elapsed_seconds = round(i / fps, 3)
+            current_log_entry = {
+                "Timestamp": elapsed_seconds,
+                "L_ELBOW": None, "R_ELBOW": None,
+                "L_KNEE": None, "R_KNEE": None,
+                "L_SHOULDER": None, "R_SHOULDER": None
+            }
 
-            # 1. Ball Detection
-            current_ball_pos = None
+            # 1. Detection
             ball_bbox = None
             if self.ball_model:
                 ball_results = self.ball_model.predict(frame, classes=[32], conf=0.3, verbose=False)
                 if len(ball_results[0].boxes) > 0:
                     box = ball_results[0].boxes[0].xyxy[0].cpu().numpy()
+                    ball_bbox = box
+                    # Trajectory dot
                     bx, by = int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2)
-                    current_ball_pos = (bx, by)
-                    ball_bbox = box 
+                    self.path_history.appendleft((bx, by))
+                    cv2.circle(display_frame, (bx, by), 22, (0, 255, 255), 2)
 
-            # 2. Hand Contact & Skeletal Logic
-            active_skeletons = [] 
+            # 2. Pose & Angles
             if self.pose_model and ball_bbox is not None:
                 pose_results = self.pose_model.predict(frame, verbose=False)
-                margin = 35
                 bx1, by1, bx2, by2 = ball_bbox
-                bx1, by1, bx2, by2 = bx1-margin, by1-margin, bx2+margin, by2+margin
+                margin = 40
+                
                 for r in pose_results:
                     if r.keypoints is not None and len(r.keypoints.xy[0]) > 0:
                         kpts = r.keypoints.xy[0].cpu().numpy()
+                        # Only log if wrists are near the ball
                         lx, ly = kpts[9]
                         rx, ry = kpts[10]
-                        if (bx1 < lx < bx2 and by1 < ly < by2) or (bx1 < rx < bx2 and by1 < ry < by2):
-                            active_skeletons.append(kpts)
+                        if (bx1-margin < lx < bx2+margin and by1-margin < ly < by2+margin) or \
+                           (bx1-margin < rx < bx2+margin and by1-margin < ry < by2+margin):
+                            
+                            # Render Skeleton
+                            for p1, p2 in self.FULL_SKELETON_EDGES:
+                                pt1, pt2 = (int(kpts[p1][0]), int(kpts[p1][1])), (int(kpts[p2][0]), int(kpts[p2][1]))
+                                if pt1 != (0,0) and pt2 != (0,0):
+                                    cv2.line(display_frame, pt1, pt2, (0, 255, 0), 2)
 
-            # 3. Rendering Trajectory
-            if current_ball_pos:
-                self.path_history.appendleft(current_ball_pos)
-                cv2.circle(display_frame, current_ball_pos, 22, (0, 255, 255), 2)
-            
+                            angles_to_compute = [
+                                (5, 7, 9, "L_ELBOW"), (6, 8, 10, "R_ELBOW"),
+                                (11, 13, 15, "L_KNEE"), (12, 14, 16, "R_KNEE"),
+                                (7, 5, 11, "L_SHOULDER"), (8, 6, 12, "R_SHOULDER")
+                            ]
+
+                            for p1, p2, p3, label in angles_to_compute:
+                                k1, k2, k3 = kpts[p1], kpts[p2], kpts[p3]
+                                if all(k[0] > 0 for k in [k1, k2, k3]):
+                                    angle = self.calculate_angle(k1, k2, k3)
+                                    current_log_entry[label] = angle
+                                    # Render angle text
+                                    pos = (int(k2[0]), int(k2[1]))
+                                    cv2.putText(display_frame, f"{angle}deg", (pos[0], pos[1]-10), 
+                                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+
+            # Always add entry to ensure x-axis (time) is complete
+            self.angle_logs.append(current_log_entry)
+
+            # Re-render path
             for j in range(1, len(self.path_history)):
-                thickness = max(1, int(8 * (1 - j/len(self.path_history))))
-                cv2.line(display_frame, self.path_history[j-1], self.path_history[j], (0, 255, 255), thickness)
+                cv2.line(display_frame, self.path_history[j-1], self.path_history[j], (0, 255, 255), 2)
 
-            # 4. Rendering Full Skeleton & Angles
-            for kpts in active_skeletons:
-                for p1, p2 in self.FULL_SKELETON_EDGES:
-                    pt1 = (int(kpts[p1][0]), int(kpts[p1][1]))
-                    pt2 = (int(kpts[p2][0]), int(kpts[p2][1]))
-                    if pt1 != (0,0) and pt2 != (0,0):
-                        cv2.line(display_frame, pt1, pt2, (0, 255, 0), 2)
-
-                angles_to_compute = [
-                    (5, 7, 9, "L ELBOW"), (6, 8, 10, "R ELBOW"),
-                    (11, 13, 15, "L KNEE"), (12, 14, 16, "R KNEE"),
-                    (7, 5, 11, "L SHOULDER"), (8, 6, 12, "R SHOULDER")
-                ]
-
-                for p1, p2, p3, label in angles_to_compute:
-                    k1, k2, k3 = kpts[p1], kpts[p2], kpts[p3]
-                    if all(k[0] > 0 for k in [k1, k2, k3]):
-                        angle = self.calculate_angle(k1, k2, k3)
-                        pos = (int(k2[0]), int(k2[1]))
-                        cv2.putText(display_frame, f"{angle}deg", (pos[0]+2, pos[1]-8), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 2)
-                        cv2.putText(display_frame, f"{angle}deg", (pos[0], pos[1]-10), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-
-                for joint_idx in range(5, 17):
-                    pt = (int(kpts[joint_idx][0]), int(kpts[joint_idx][1]))
-                    if pt != (0,0):
-                        cv2.circle(display_frame, pt, 4, (255, 255, 255), -1)
-
+            # Finalize Frame
             w_orig, h_orig = frame.shape[1], frame.shape[0]
             _, screen_dim = self.get_resize_params(w_orig, h_orig)
             temp_replay.append(cv2.resize(display_frame, screen_dim))
@@ -182,12 +223,14 @@ class BasketballColorTracker:
         cv2.namedWindow("AI Basketball Tracker", cv2.WINDOW_NORMAL)
         while self.running:
             key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'): self.running = False
+            if key == ord('q'): 
+                self.running = False
+                self.save_data_and_plot()
             if key == ord('p'): self.paused = not self.paused
 
             if self.mode == "PROCESSING":
                 bg = np.zeros((400, 700, 3), dtype=np.uint8)
-                cv2.putText(bg, f"SYNCHRONIZING TIMER: {self.processing_progress}%", (100, 200), 
+                cv2.putText(bg, f"GENERATING KINEMATIC DATA: {self.processing_progress}%", (80, 200), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
                 cv2.imshow("AI Basketball Tracker", bg)
             elif self.mode == "REPLAY":
