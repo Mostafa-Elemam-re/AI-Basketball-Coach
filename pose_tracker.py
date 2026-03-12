@@ -30,7 +30,6 @@ class BasketballColorTracker:
         
         if YOLO_AVAILABLE:
             try:
-                # Explicitly using YOLO26x High-Precision architecture
                 print("--- Loading YOLO26x High-Precision Models ---")
                 self.ball_model = YOLO("yolo26x.pt")
                 self.pose_model = YOLO("yolo26x-pose.pt") 
@@ -46,11 +45,15 @@ class BasketballColorTracker:
         self.processing_progress = 0
         self.ridx = 0
         self.paused = True 
+        self.fps = 30.0 # Default fallback
 
-        # Data Logging (Every Frame)
+        # Persistence Logic
+        self.active_player_id = None # Tracks the index of the person near the ball
+        self.active_kpts = None      # Stores the last known skeleton of the shooter
+
+        # Data Logging
         self.angle_logs = []
         
-        # YOLO26x FULL SKELETON MAP
         self.FULL_SKELETON_EDGES = [
             (5, 6), (5, 11), (6, 12), (11, 12),
             (5, 7), (7, 9),   (6, 8), (8, 10),
@@ -68,18 +71,12 @@ class BasketballColorTracker:
         return file_path
 
     def calculate_angle(self, a, b, c):
-        """Calculates the angle at point B given points A, B, and C."""
-        a = np.array(a)
-        b = np.array(b)
-        c = np.array(c)
-        # Prevent division by zero or errors on empty keypoints
+        a, b, c = np.array(a), np.array(b), np.array(c)
         if np.all(a == 0) or np.all(b == 0) or np.all(c == 0):
             return None
-        
         radians = np.arctan2(c[1]-b[1], c[0]-b[0]) - np.arctan2(a[1]-b[1], a[0]-b[0])
         angle = np.abs(radians*180.0/np.pi)
-        if angle > 180.0:
-            angle = 360-angle
+        if angle > 180.0: angle = 360-angle
         return int(angle)
 
     def get_resize_params(self, w, h, max_w=1280, max_h=720):
@@ -87,9 +84,7 @@ class BasketballColorTracker:
         return scale, (int(w * scale), int(h * scale))
 
     def save_data_and_plot(self):
-        if not self.angle_logs:
-            print("No data recorded to save.")
-            return
+        if not self.angle_logs: return
         
         filename = "shooting_analysis.csv"
         keys = self.angle_logs[0].keys()
@@ -98,13 +93,9 @@ class BasketballColorTracker:
                 dict_writer = csv.DictWriter(output_file, fieldnames=keys)
                 dict_writer.writeheader()
                 dict_writer.writerows(self.angle_logs)
-            print(f"--- Data successfully saved to {filename} ---")
-        except Exception as e:
-            print(f"Error saving CSV: {e}")
+        except Exception as e: print(f"Error: {e}")
 
-        print("Generating Analysis Graph...")
         timestamps = [log["Timestamp"] for log in self.angle_logs]
-        
         plt.figure(figsize=(12, 6))
         joints = ["L_ELBOW", "R_ELBOW", "L_KNEE", "R_KNEE", "L_SHOULDER", "R_SHOULDER"]
         colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF33A1', '#33FFF2']
@@ -114,30 +105,22 @@ class BasketballColorTracker:
             angles = [log[joint] for log in self.angle_logs]
             clean_times = [t for t, a in zip(timestamps, angles) if a is not None]
             clean_angles = [a for a in angles if a is not None]
-            
             if clean_angles:
-                plt.plot(clean_times, clean_angles, label=joint.replace("_", " "), 
-                         color=color, linewidth=2, marker='o', markersize=3, alpha=0.8)
+                plt.plot(clean_times, clean_angles, label=joint.replace("_", " "), color=color)
                 has_plot_data = True
 
         if has_plot_data:
-            plt.title("Biomechanical Shot Analysis: Joint Angles vs Time", fontsize=14, fontweight='bold')
-            plt.xlabel("Time (Seconds)", fontsize=12)
-            plt.ylabel("Angle (Degrees)", fontsize=12)
-            plt.legend(loc='upper right', bbox_to_anchor=(1.15, 1))
-            plt.grid(True, linestyle='--', alpha=0.6)
-            plt.tight_layout()
+            plt.title("Biomechanical Persistence Analysis")
+            plt.xlabel("Seconds")
+            plt.ylabel("Degrees")
+            plt.legend()
             plt.savefig('joint_angles_over_time.png', dpi=300)
-            print("Graph saved as 'joint_angles_over_time.png'")
             plt.show()
-        else:
-            print("No angle data found to plot.")
 
     def process_video(self):
         cap = cv2.VideoCapture(self.VIDEO_PATH)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        if fps <= 0: fps = 30.0
+        self.fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
         
         temp_replay = []
         
@@ -148,68 +131,67 @@ class BasketballColorTracker:
             
             self.processing_progress = int((i / total_frames) * 100)
             display_frame = frame.copy()
-            
-            elapsed_seconds = round(i / fps, 3)
-            current_log_entry = {
-                "Timestamp": elapsed_seconds,
-                "L_ELBOW": None, "R_ELBOW": None,
-                "L_KNEE": None, "R_KNEE": None,
-                "L_SHOULDER": None, "R_SHOULDER": None
-            }
+            elapsed_seconds = round(i / self.fps, 3)
+            current_log_entry = {"Timestamp": elapsed_seconds, "L_ELBOW": None, "R_ELBOW": None, "L_KNEE": None, "R_KNEE": None, "L_SHOULDER": None, "R_SHOULDER": None}
 
-            # 1. Detection
-            ball_bbox = None
+            # 1. Detect Ball First
+            ball_center = None
             if self.ball_model:
                 ball_results = self.ball_model.predict(frame, classes=[32], conf=0.3, verbose=False)
                 if len(ball_results) > 0 and len(ball_results[0].boxes) > 0:
                     box = ball_results[0].boxes[0].xyxy[0].cpu().numpy()
-                    ball_bbox = box
-                    bx, by = int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2)
-                    self.path_history.appendleft((bx, by))
-                    cv2.circle(display_frame, (bx, by), 22, (0, 255, 255), 2)
+                    ball_center = (int((box[0]+box[2])/2), int((box[1]+box[3])/2))
+                    self.path_history.appendleft(ball_center)
+                    cv2.circle(display_frame, ball_center, 15, (0, 255, 255), 2)
 
-            # 2. Pose & Angles (Safe handling)
-            if self.pose_model and ball_bbox is not None:
+            # 2. Detect ALL People (Pose)
+            if self.pose_model:
                 pose_results = self.pose_model.predict(frame, verbose=False)
-                bx1, by1, bx2, by2 = ball_bbox
-                margin = 45
+                potential_shooters = []
                 
-                for r in pose_results:
-                    # FIX: Ensure keypoints and xy data exist before accessing index 0
-                    if hasattr(r, 'keypoints') and r.keypoints is not None and \
-                       r.keypoints.xy is not None and len(r.keypoints.xy) > 0:
-                        
+                for idx, r in enumerate(pose_results):
+                    if hasattr(r, 'keypoints') and r.keypoints is not None and len(r.keypoints.xy) > 0:
                         kpts = r.keypoints.xy[0].cpu().numpy()
-                        if len(kpts) < 17: continue # Ensure full COCO skeleton
+                        if len(kpts) < 17: continue
                         
-                        lx, ly = kpts[9]
-                        rx, ry = kpts[10]
+                        potential_shooters.append({'id': idx, 'kpts': kpts})
                         
-                        # Only log if wrists are near the ball
-                        if (bx1-margin < lx < bx2+margin and by1-margin < ly < by2+margin) or \
-                           (bx1-margin < rx < bx2+margin and by1-margin < ry < by2+margin):
+                        if ball_center:
+                            lw, rw = kpts[9], kpts[10]
+                            dist_l = math.hypot(ball_center[0]-lw[0], ball_center[1]-lw[1])
+                            dist_r = math.hypot(ball_center[0]-rw[0], ball_center[1]-rw[1])
                             
-                            for p1, p2 in self.FULL_SKELETON_EDGES:
-                                pt1, pt2 = (int(kpts[p1][0]), int(kpts[p1][1])), (int(kpts[p2][0]), int(kpts[p2][1]))
-                                if pt1 != (0,0) and pt2 != (0,0):
-                                    cv2.line(display_frame, pt1, pt2, (0, 255, 0), 2)
+                            if dist_l < 50 or dist_r < 50:
+                                self.active_player_id = idx
 
-                            angles_to_compute = [
-                                (5, 7, 9, "L_ELBOW"), (6, 8, 10, "R_ELBOW"),
-                                (11, 13, 15, "L_KNEE"), (12, 14, 16, "R_KNEE"),
-                                (7, 5, 11, "L_SHOULDER"), (8, 6, 12, "R_SHOULDER")
-                            ]
+                # 3. Persistent Rendering
+                for shooter in potential_shooters:
+                    if shooter['id'] == self.active_player_id:
+                        self.active_kpts = shooter['kpts']
+                        break
+                
+                if self.active_kpts is not None:
+                    kpts = self.active_kpts
+                    for p1, p2 in self.FULL_SKELETON_EDGES:
+                        pt1, pt2 = (int(kpts[p1][0]), int(kpts[p1][1])), (int(kpts[p2][0]), int(kpts[p2][1]))
+                        if pt1 != (0,0) and pt2 != (0,0):
+                            cv2.line(display_frame, pt1, pt2, (0, 255, 0), 2)
 
-                            for p1, p2, p3, label in angles_to_compute:
-                                angle = self.calculate_angle(kpts[p1], kpts[p2], kpts[p3])
-                                if angle is not None:
-                                    current_log_entry[label] = angle
-                                    pos = (int(kpts[p2][0]), int(kpts[p2][1]))
-                                    cv2.putText(display_frame, f"{angle}d", (pos[0], pos[1]-10), 
-                                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+                    angles_to_compute = [
+                        (5, 7, 9, "L_ELBOW"), (6, 8, 10, "R_ELBOW"),
+                        (11, 13, 15, "L_KNEE"), (12, 14, 16, "R_KNEE"),
+                        (7, 5, 11, "L_SHOULDER"), (8, 6, 12, "R_SHOULDER")
+                    ]
+
+                    for p1, p2, p3, label in angles_to_compute:
+                        angle = self.calculate_angle(kpts[p1], kpts[p2], kpts[p3])
+                        if angle:
+                            current_log_entry[label] = angle
+                            pos = (int(kpts[p2][0]), int(kpts[p2][1]))
+                            cv2.putText(display_frame, f"{angle}", pos, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
             self.angle_logs.append(current_log_entry)
-
+            
             for j in range(1, len(self.path_history)):
                 cv2.line(display_frame, self.path_history[j-1], self.path_history[j], (0, 255, 255), 2)
 
@@ -224,7 +206,12 @@ class BasketballColorTracker:
     def run(self):
         threading.Thread(target=self.process_video, daemon=True).start()
         cv2.namedWindow("AI Basketball Tracker", cv2.WINDOW_NORMAL)
+        
         while self.running:
+            # Replay Speed Control
+            frame_delay = 1.0 / self.fps # Exact wait time based on source FPS
+            start_time = time.time()
+            
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'): 
                 self.running = False
@@ -233,21 +220,22 @@ class BasketballColorTracker:
 
             if self.mode == "PROCESSING":
                 bg = np.zeros((400, 700, 3), dtype=np.uint8)
-                cv2.putText(bg, f"ANALYZING SKELETONS: {self.processing_progress}%", (80, 200), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                cv2.putText(bg, f"LOCKING TARGET: {self.processing_progress}%", (100, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
                 cv2.imshow("AI Basketball Tracker", bg)
             elif self.mode == "REPLAY":
-                if not self.paused:
-                    if self.ridx < len(self.processed_replay_buffer):
-                        cv2.imshow("AI Basketball Tracker", self.processed_replay_buffer[self.ridx])
+                if self.ridx < len(self.processed_replay_buffer):
+                    cv2.imshow("AI Basketball Tracker", self.processed_replay_buffer[self.ridx])
+                    if not self.paused: 
                         self.ridx += 1
-                        time.sleep(0.03)
-                    else: self.ridx = 0 
-                else:
-                    if self.ridx < len(self.processed_replay_buffer):
-                        cv2.imshow("AI Basketball Tracker", self.processed_replay_buffer[self.ridx])
+                        # Wait logic to sync with original FPS
+                        time_to_wait = frame_delay - (time.time() - start_time)
+                        if time_to_wait > 0:
+                            time.sleep(time_to_wait)
+                else: 
+                    self.ridx = 0
             
             if cv2.getWindowProperty("AI Basketball Tracker", cv2.WND_PROP_VISIBLE) < 1: break
+            
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
