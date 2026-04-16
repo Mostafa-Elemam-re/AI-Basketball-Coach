@@ -29,3 +29,7 @@ python -m venv [replace this with the name of environment]
 [name of environment]\Scripts\activate
 
 pip install -r requirements.txt
+
+3. Install dependencies
+
+pip install -r requirements.txt
