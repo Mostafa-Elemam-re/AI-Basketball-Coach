@@ -28,43 +28,43 @@ An advanced computer vision system designed to analyze basketball shooting mecha
 
 # **⚙️ Installation & Setup**
 
-1. Navigate to your working folder
+**1. Navigate to your working folder**
 
 ```bash
 cd [replace this with the folder name]
 ```
 
-2. Clone github repository
+**2. Clone github repository**
 
 ```bash
 git clone [https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach.git](https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach.git)
 ```
 
-3. Navigate to Repository Folder
+**3. Navigate to Repository Folder**
 
 ```bash
 cd AI-Basketball-Coach
 ```
 
-4. Create Environment
+**4. Create Environment**
 
 ```bash
 python -m venv [replace this with the name of environment]
 ```
 
-5. Activate Environment
+**5. Activate Environment**
 
 ```bash
 [name of environment]\Scripts\activate
 ```
 
-6. Install Library Requirements
+**6. Install Library Requirements**
 
 ```bash
 pip install -r requirements.txt
 ```
 
-7. Run Model
+**7. Run Model**
 
 ```bash
 python pose_tracker.py
