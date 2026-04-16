@@ -7,8 +7,14 @@ An advanced computer vision system designed to analyse basketball shooting mecha
 # **📽️ Project Demo**
 
 <div align="center">
-<video src=One%20shot.mp4 controls title="AI Basketball Coach Demo"></video>
-
+<video 
+    src="https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach/blob/cd797ade15d07ce4a6202c024f4a19fe9d03184b/One%20shot.mp4" 
+    controls="controls" 
+    style="max-width: 100%; border-radius: 10px;" 
+    muted="muted"
+    autoplay="autoplay" 
+    loop="loop">
+  </video>
 <i>Tracking ball trajectory and skeletal biomechanics during a shot</i>
 
 <img src="Feedback-Results.png">
