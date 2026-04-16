@@ -6,5 +6,5 @@ An advanced computer vision system designed to analyze basketball shooting mecha
 
 <div align="center">
 <img src="Project-Demo.gif" width="25%" height="25%">
-<img src="Feedback-Results.png" width="25%" height="25%">
+<img src="Feedback-Results.png" width="50%" height="50%">
 </div>
