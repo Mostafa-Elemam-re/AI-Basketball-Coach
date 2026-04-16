@@ -5,5 +5,5 @@ An advanced computer vision system designed to analyze basketball shooting mecha
 📽️ Project Demo
 
 <div align="center">
-<img src="Project-Demo.gif" width="100%" alt="AI Basketball Coach Demo">
+<img src="Project-Demo.gif" width="50%" height="50%" alt="AI Basketball Coach Demo">
 </div>
