@@ -1,6 +1,6 @@
 # **🏀 AI Basketball Coach**
 
-An advanced computer vision system designed to analyze basketball shooting mechanics, track ball trajectory, and provide biomechanical feedback using YOLO26x.
+An advanced computer vision system designed to analyse basketball shooting mechanics, track ball trajectory, and provide biomechanical feedback using YOLO26x.
 
 ---
 
@@ -28,13 +28,13 @@ An advanced computer vision system designed to analyze basketball shooting mecha
 
 # **⚙️ Installation & Setup**
 
-**1. Navigate to your working folder**
+**1. Navigate to Working Folder**
 
 ```bash
 cd [replace this with the folder name]
 ```
 
-**2. Clone github repository**
+**2. Clone Github Repository**
 
 ```bash
 git clone [https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach.git](https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach.git)
@@ -68,4 +68,10 @@ pip install -r requirements.txt
 
 ```bash
 python pose_tracker.py
+```
+
+**8. Run Feedback Generator**
+
+```bash
+python feedback-generator.py
 ```
