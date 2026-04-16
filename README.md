@@ -5,8 +5,10 @@ An advanced computer vision system designed to analyze basketball shooting mecha
 📽️ Project Demo
 
 <div align="center">
-  <figure>
   <img src="Project-Demo.gif" width="25%" height="25%">
+  <img src="Feedback-Results.png" width="50%" height="50%">
+  
+  <figure>
   <figcaption>
   <i>
     Tracking ball trajectory and skeletal biomechanics during a shot.
@@ -14,7 +16,6 @@ An advanced computer vision system designed to analyze basketball shooting mecha
   </figcaption>
   </figure>
   <figure>
-  <img src="Feedback-Results.png" width="50%" height="50%">
   <figcaption>
   <i>
     Report of Biomechanical Feedback.
