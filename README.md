@@ -34,20 +34,32 @@ cd [replace this with the folder name]
 git clone [https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach.git](https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach.git)
 ```
 
+3. Navigate to Repository Folder
+
 ```bash
 cd AI-Basketball-Coach
 ```
 
-3. Create & Activate Environment
+4. Create Environment
 
 ```bash
 python -m venv [replace this with the name of environment]
 ```
 
+5. Activate Environment
+
 ```bash
 [name of environment]\Scripts\activate
 ```
 
+6. Install Library Requirements
+
 ```bash
 pip install -r requirements.txt
+```
+
+7. Run Model
+
+```bash
+python pose_tracker.py
 ```
