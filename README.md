@@ -49,13 +49,13 @@ cd AI-Basketball-Coach
 **4. Create Environment**
 
 ```bash
-python -m venv [replace this with the name of environment]
+python -m venv Coach
 ```
 
 **5. Activate Environment**
 
 ```bash
-[name of environment]\Scripts\activate
+Coach\Scripts\activate
 ```
 
 **6. Install Library Requirements**
