@@ -8,7 +8,7 @@ An advanced computer vision system designed to analyse basketball shooting mecha
 
 <div align="center">
 <video 
-    src="https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach/blob/cd797ade15d07ce4a6202c024f4a19fe9d03184b/One%20shot.mp4" 
+    src="https://github.com/user-attachments/assets/48be59bf-266f-4178-959a-2cf9c802fc29" 
     controls="controls" 
     style="max-width: 100%; border-radius: 10px;" 
     muted="muted"
