@@ -10,3 +10,13 @@ An advanced computer vision system designed to analyze basketball shooting mecha
   
 <i>Tracking ball trajectory and skeletal biomechanics during a shot (left). Report of Biomechanical Feedback (right).</i>
 </div>
+
+🚀 Key Features
+
+High-Precision Detection: Utilizes YOLO26x for state-of-the-art object detection, ensuring consistent tracking of the basketball even at high velocities.
+
+Advanced Pose Estimation: Integrated with YOLO26x-pose for ultra-accurate 2D skeletal landmarking, providing a more robust foundation for biomechanical analysis than standard models.
+
+⚙️ Installation & Setup
+
+python -m venv venv
