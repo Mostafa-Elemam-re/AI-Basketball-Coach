@@ -24,6 +24,7 @@ Advanced Pose Estimation: Integrated with YOLO26x-pose for ultra-accurate 2D ske
 
 1. Navigate to your working folder
 
+'''bash
 cd [replace this with the folder name]
 
 2. Clone github repository
