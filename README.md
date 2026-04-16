@@ -12,7 +12,7 @@ An advanced computer vision system designed to analyze basketball shooting mecha
 
 <img src="Feedback-Results.png" width="50%">
 
-<i>Report of Biomechanical Feedback</i>
+<i>Biomechanical Feedback Report</i>
 </div>
 
 
