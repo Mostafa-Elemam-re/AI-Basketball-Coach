@@ -8,5 +8,5 @@ An advanced computer vision system designed to analyze basketball shooting mecha
 <img src="Project-Demo.gif" width="25%">
 <img src="Feedback-Results.png" width="50%">
   
-<i>Tracking ball trajectory and skeletal biomechanics during a shot. (left) Report of Biomechanical Feedback. (right).</i>
+<i>Tracking ball trajectory and skeletal biomechanics during a shot (left). Report of Biomechanical Feedback (right).</i>
 </div>
