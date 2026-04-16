@@ -7,3 +7,6 @@ An advanced computer vision system designed to analyze basketball shooting mecha
 <div align="center">
 <img src="Project-Demo.gif" width="25%" height="25%" alt="AI Basketball Coach Demo">
 </div>
+<div align="center">
+<img src="Feedback-Results.png">
+</div>
