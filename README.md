@@ -1,12 +1,12 @@
 **🏀 AI Basketball Coach**
 
-An advanced computer vision system designed to analyze basketball shooting mechanics, track ball trajectory, and provide biomechanical feedback using YOLO.
+An advanced computer vision system designed to analyze basketball shooting mechanics, track ball trajectory, and provide biomechanical feedback using YOLO26x.
 
 
 **📽️ Project Demo**
 
 <div align="center">
-<img ![Shot analysis](One shot 26x.mp4)>
+<img src=![Shot analysis](One shot 26x.mp4)>
 
 <i>Tracking ball trajectory and skeletal biomechanics during a shot</i>
 
