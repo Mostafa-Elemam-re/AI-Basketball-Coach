@@ -5,9 +5,9 @@ An advanced computer vision system designed to analyze basketball shooting mecha
 📽️ Project Demo
 
 <div align="left">
-  <img src="Project-Demo.gif" width="25%" height="25%">
-  <div align="right">
-  <img src="Feedback-Results.png" width="50%" height="50%">
+<img src="Project-Demo.gif" width="25%" height="25%">
+<div align="right">
+<img src="Feedback-Results.png" width="50%" height="50%">
 </div>
 </div>
 
