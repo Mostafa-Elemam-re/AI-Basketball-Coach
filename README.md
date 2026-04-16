@@ -24,19 +24,30 @@ Advanced Pose Estimation: Integrated with YOLO26x-pose for ultra-accurate 2D ske
 
 1. Navigate to your working folder
 
-'''bash
+```bash
 cd [replace this with the folder name]
+```
 
 2. Clone github repository
 
+```bash
 git clone [https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach.git](https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach.git)
+```
 
+```bash
 cd AI-Basketball-Coach
+```
 
 3. Create & Activate Environment
 
+```bash
 python -m venv [replace this with the name of environment]
+```
 
+```bash
 [name of environment]\Scripts\activate
+```
 
+```bash
 pip install -r requirements.txt
+```
