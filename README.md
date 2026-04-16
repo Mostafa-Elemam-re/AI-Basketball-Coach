@@ -18,5 +18,14 @@ High-Precision Detection: Utilizes YOLO26x for state-of-the-art object detection
 Advanced Pose Estimation: Integrated with YOLO26x-pose for ultra-accurate 2D skeletal landmarking, providing a more robust foundation for biomechanical analysis than standard models.
 
 ⚙️ Installation & Setup
+cd [replace this with the folder name]
 
-python -m venv venv
+git clone [https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach.git](https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach.git)
+
+cd AI-Basketball-Coach
+
+python -m venv [replace this with the name of environment]
+
+[name of environment]\Scripts\activate
+
+pip install -r requirements.txt
