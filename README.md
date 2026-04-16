@@ -15,6 +15,7 @@ An advanced computer vision system designed to analyze basketball shooting mecha
   </i>
   </figcaption>
   </figure>
+  
   <figure>
   <figcaption>
   <i>
