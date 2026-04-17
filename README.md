@@ -44,7 +44,7 @@ cd [replace this with the folder name]
 **2. Clone Github Repository**
 
 ```bash
-git clone [https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach.git](https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach.git)
+git clone https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach.git
 ```
 
 **3. Navigate to Repository Folder**
