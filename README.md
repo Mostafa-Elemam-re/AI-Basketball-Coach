@@ -35,10 +35,10 @@ An advanced computer vision system designed to analyse basketball shooting mecha
 
 # **⚙️ Installation & Setup**
 
-**1. Navigate to Working Folder**
+**1. Navigate to Working Directory**
 
 ```bash
-cd [replace this with the folder name]
+cd [replace this with the directory name]
 ```
 
 **2. Clone Github Repository**
@@ -47,7 +47,7 @@ cd [replace this with the folder name]
 git clone https://github.com/Mostafa-Elemam-re/AI-Basketball-Coach.git
 ```
 
-**3. Navigate to Repository Folder**
+**3. Navigate to Cloned Repository**
 
 ```bash
 cd AI-Basketball-Coach
