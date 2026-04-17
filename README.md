@@ -8,15 +8,7 @@ An advanced computer vision system designed to analyse basketball shooting mecha
 
 <div align="center">
 <video 
-    src="https://github.com/user-attachments/assets/8fb92f4a-355e-49a5-a746-a623c083ff8d"
-    controls
-    style="max-width: 100%; border-radius: 0px;" 
-    muted="muted"
-    autoplay 
-    loop>
-  </video>
-<video 
-    src="https://github.com/user-attachments/assets/ddf36d17-df56-4d1b-871d-b5b7afc729cf"
+    src=""
     controls
     style="max-width: 100%; border-radius: 0px;" 
     muted="muted"
