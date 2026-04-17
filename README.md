@@ -15,6 +15,14 @@ An advanced computer vision system designed to analyse basketball shooting mecha
     autoplay 
     loop>
   </video>
+<video 
+    src="https://github.com/user-attachments/assets/ddf36d17-df56-4d1b-871d-b5b7afc729cf"
+    controls
+    style="max-width: 100%; border-radius: 0px;" 
+    muted="muted"
+    autoplay 
+    loop>
+  </video>
     
 <i>Tracking ball trajectory and skeletal biomechanics during a shot</i>
 
