@@ -16,6 +16,8 @@ An advanced computer vision system designed to analyse basketball shooting mecha
   
 </div>
 
+**Basketball Coaching Demo**
+
 <div align="center">
 <video 
     src="https://github.com/user-attachments/assets/ca41c72f-9b9d-4179-ac63-f950c98046bc"
