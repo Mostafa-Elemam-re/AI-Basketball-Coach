@@ -7,6 +7,8 @@ An advanced computer vision system designed to analyse basketball shooting mecha
 # **📽️ Project Demo**
 
 <div align="center">
+
+  **Basketball Analysis Video**
   
   [![Project Demo](https://github.com/user-attachments/assets/77509bbc-d174-4b5b-b23a-e8fd8eed14cd)](https://youtube.com/shorts/8NrbtUO-7lg)
   
