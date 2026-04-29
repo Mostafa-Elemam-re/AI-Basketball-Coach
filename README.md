@@ -7,14 +7,12 @@ An advanced computer vision system designed to analyse basketball shooting mecha
 # **📽️ Project Demo**
 
 <div align="center">
-<video 
-    src="https://youtube.com/shorts/8NrbtUO-7lg?feature=share"
-    controls
-    style="max-width: 100%; border-radius: 0px;" 
-    muted="muted"
-    autoplay 
-    loop>
-  </video>
+  
+  [![Project Demo]](https://youtube.com/shorts/8NrbtUO-7lg)
+  
+  *Click to watch the full demonstration on YouTube*
+  
+</div>
     
 <i>Tracking ball trajectory and skeletal biomechanics during a shot</i>
 
